@@ -1,213 +1,214 @@
-import { Star, GravityDirection, GravityWell, Particle } from './types';
+import { Star, GravityWell, Particle, ParsedFn, GravityDirection } from './types';
 
 interface RenderState {
-  canvasWidth: number;
-  canvasHeight: number;
+  width: number;
+  height: number;
   xRange: [number, number];
   yRange: [number, number];
-  fn: ((x: number) => number) | null;
+  curves: ParsedFn[];
   marblePos: { x: number; y: number } | null;
   trail: { x: number; y: number }[];
   stars: Star[];
   gravity: GravityDirection;
   gravityWells: GravityWell[];
   particles: Particle[];
-  starField: { x: number; y: number; brightness: number }[];
   time: number;
 }
 
-function mathToCanvas(
+function m2c(
   mx: number, my: number,
-  xRange: [number, number], yRange: [number, number],
+  xr: [number, number], yr: [number, number],
   w: number, h: number
 ): [number, number] {
-  const cx = ((mx - xRange[0]) / (xRange[1] - xRange[0])) * w;
-  const cy = h - ((my - yRange[0]) / (yRange[1] - yRange[0])) * h;
-  return [cx, cy];
+  return [
+    ((mx - xr[0]) / (xr[1] - xr[0])) * w,
+    h - ((my - yr[0]) / (yr[1] - yr[0])) * h,
+  ];
 }
 
-export function render(ctx: CanvasRenderingContext2D, state: RenderState) {
-  const { canvasWidth: W, canvasHeight: H, xRange, yRange } = state;
+export function renderGraph(ctx: CanvasRenderingContext2D, state: RenderState) {
+  const { width: W, height: H, xRange: xr, yRange: yr } = state;
 
-  // Clear
-  ctx.fillStyle = '#020617';
+  // Background
+  ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, W, H);
 
-  // Star field
-  for (const s of state.starField) {
-    const flicker = 0.5 + 0.5 * Math.sin(state.time * 2 + s.x * 10 + s.y * 7);
-    ctx.fillStyle = `rgba(255, 255, 255, ${s.brightness * 0.3 * flicker})`;
-    ctx.beginPath();
-    ctx.arc(s.x, s.y, 1, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  // Grid
-  ctx.strokeStyle = 'rgba(51, 65, 85, 0.3)';
+  // Grid lines
   ctx.lineWidth = 0.5;
-  for (let x = Math.ceil(xRange[0]); x <= Math.floor(xRange[1]); x++) {
-    const [cx] = mathToCanvas(x, 0, xRange, yRange, W, H);
-    ctx.beginPath();
-    ctx.moveTo(cx, 0);
-    ctx.lineTo(cx, H);
-    ctx.stroke();
+  const xStep = getGridStep(xr[1] - xr[0]);
+  const yStep = getGridStep(yr[1] - yr[0]);
+
+  ctx.strokeStyle = '#e5e7eb';
+  for (let x = Math.ceil(xr[0] / xStep) * xStep; x <= xr[1]; x += xStep) {
+    const [cx] = m2c(x, 0, xr, yr, W, H);
+    ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, H); ctx.stroke();
   }
-  for (let y = Math.ceil(yRange[0]); y <= Math.floor(yRange[1]); y++) {
-    const [, cy] = mathToCanvas(0, y, xRange, yRange, W, H);
-    ctx.beginPath();
-    ctx.moveTo(0, cy);
-    ctx.lineTo(W, cy);
-    ctx.stroke();
+  for (let y = Math.ceil(yr[0] / yStep) * yStep; y <= yr[1]; y += yStep) {
+    const [, cy] = m2c(0, y, xr, yr, W, H);
+    ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(W, cy); ctx.stroke();
   }
 
-  // Axes
-  ctx.strokeStyle = 'rgba(100, 116, 139, 0.5)';
-  ctx.lineWidth = 1;
-  const [ax0] = mathToCanvas(0, 0, xRange, yRange, W, H);
-  const [, ay0] = mathToCanvas(0, 0, xRange, yRange, W, H);
-  ctx.beginPath(); ctx.moveTo(ax0, 0); ctx.lineTo(ax0, H); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(0, ay0); ctx.lineTo(W, ay0); ctx.stroke();
+  // Axes (thicker)
+  ctx.strokeStyle = '#374151';
+  ctx.lineWidth = 1.5;
+  const [ax] = m2c(0, 0, xr, yr, W, H);
+  const [, ay] = m2c(0, 0, xr, yr, W, H);
+  if (ax >= 0 && ax <= W) { ctx.beginPath(); ctx.moveTo(ax, 0); ctx.lineTo(ax, H); ctx.stroke(); }
+  if (ay >= 0 && ay <= H) { ctx.beginPath(); ctx.moveTo(0, ay); ctx.lineTo(W, ay); ctx.stroke(); }
 
   // Axis labels
-  ctx.fillStyle = 'rgba(148, 163, 184, 0.5)';
-  ctx.font = '10px JetBrains Mono, monospace';
-  for (let x = Math.ceil(xRange[0]); x <= Math.floor(xRange[1]); x++) {
-    const [cx, cy] = mathToCanvas(x, 0, xRange, yRange, W, H);
-    ctx.fillText(String(x), cx + 2, cy - 4);
+  ctx.fillStyle = '#6b7280';
+  ctx.font = '11px Inter, sans-serif';
+  ctx.textAlign = 'center';
+  for (let x = Math.ceil(xr[0] / xStep) * xStep; x <= xr[1]; x += xStep) {
+    if (Math.abs(x) < 0.001) continue;
+    const [cx, cy] = m2c(x, 0, xr, yr, W, H);
+    const label = Number.isInteger(x) ? String(x) : x.toFixed(1);
+    ctx.fillText(label, cx, Math.min(cy + 16, H - 4));
   }
-  for (let y = Math.ceil(yRange[0]); y <= Math.floor(yRange[1]); y++) {
-    if (y === 0) continue;
-    const [cx, cy] = mathToCanvas(0, y, xRange, yRange, W, H);
-    ctx.fillText(String(y), cx + 4, cy + 3);
+  ctx.textAlign = 'right';
+  for (let y = Math.ceil(yr[0] / yStep) * yStep; y <= yr[1]; y += yStep) {
+    if (Math.abs(y) < 0.001) continue;
+    const [cx, cy] = m2c(0, y, xr, yr, W, H);
+    const label = Number.isInteger(y) ? String(y) : y.toFixed(1);
+    ctx.fillText(label, Math.max(cx - 6, 24), cy + 4);
   }
 
   // Gravity wells
   for (const well of state.gravityWells) {
-    const [wx, wy] = mathToCanvas(well.x, well.y, xRange, yRange, W, H);
-    const pixelRadius = (well.radius / (xRange[1] - xRange[0])) * W;
-    const pulse = 0.6 + 0.4 * Math.sin(state.time * 3);
-
+    const [wx, wy] = m2c(well.x, well.y, xr, yr, W, H);
+    const pr = (well.radius / (xr[1] - xr[0])) * W;
+    const pulse = 0.5 + 0.5 * Math.sin(state.time * 3);
     for (let i = 3; i >= 0; i--) {
-      ctx.strokeStyle = `rgba(168, 85, 247, ${0.15 * (4 - i) * pulse})`;
+      ctx.strokeStyle = `rgba(147, 51, 234, ${0.12 * (4 - i) * pulse})`;
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(wx, wy, pixelRadius * (0.4 + i * 0.2), 0, Math.PI * 2);
+      ctx.arc(wx, wy, pr * (0.4 + i * 0.2), 0, Math.PI * 2);
       ctx.stroke();
     }
-
-    // Arrow indicator
-    ctx.fillStyle = `rgba(168, 85, 247, ${0.7 * pulse})`;
-    ctx.font = '16px sans-serif';
-    ctx.fillText(well.strength > 0 ? '⊕' : '⊖', wx - 8, wy + 6);
+    ctx.fillStyle = `rgba(147, 51, 234, ${0.6 * pulse})`;
+    ctx.font = 'bold 18px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(well.strength > 0 ? '⊕' : '⊖', wx, wy + 6);
   }
 
-  // Curve
-  if (state.fn) {
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.8)';
-    ctx.lineWidth = 2;
-    ctx.shadowColor = 'rgba(56, 189, 248, 0.5)';
-    ctx.shadowBlur = 8;
+  // Curves
+  for (const curve of state.curves) {
+    ctx.strokeStyle = curve.color;
+    ctx.lineWidth = 2.5;
     ctx.beginPath();
     let started = false;
-    const step = (xRange[1] - xRange[0]) / 400;
-    for (let x = xRange[0]; x <= xRange[1]; x += step) {
-      const y = state.fn(x);
-      if (!isFinite(y) || Math.abs(y) > 100) { started = false; continue; }
-      const [cx, cy] = mathToCanvas(x, y, xRange, yRange, W, H);
+    const step = (xr[1] - xr[0]) / 600;
+    for (let x = xr[0]; x <= xr[1]; x += step) {
+      if (curve.condition && !curve.condition(x)) { started = false; continue; }
+      const y = curve.fn(x);
+      if (!isFinite(y) || Math.abs(y) > 1000) { started = false; continue; }
+      const [cx, cy] = m2c(x, y, xr, yr, W, H);
       if (!started) { ctx.moveTo(cx, cy); started = true; }
       else ctx.lineTo(cx, cy);
     }
     ctx.stroke();
-    ctx.shadowBlur = 0;
   }
 
   // Trail
   for (let i = 0; i < state.trail.length; i++) {
-    const alpha = (i / state.trail.length) * 0.6;
-    const size = (i / state.trail.length) * 4;
-    const [tx, ty] = mathToCanvas(state.trail[i].x, state.trail[i].y, xRange, yRange, W, H);
-    ctx.fillStyle = `rgba(251, 191, 36, ${alpha})`;
+    const alpha = (i / state.trail.length) * 0.5;
+    const size = (i / state.trail.length) * 3 + 1;
+    const [tx, ty] = m2c(state.trail[i].x, state.trail[i].y, xr, yr, W, H);
+    ctx.fillStyle = `rgba(147, 51, 234, ${alpha})`;
     ctx.beginPath();
     ctx.arc(tx, ty, size, 0, Math.PI * 2);
     ctx.fill();
   }
 
-  // Stars
+  // Stars (5-pointed)
   for (const star of state.stars) {
     if (star.collected) continue;
-    const [sx, sy] = mathToCanvas(star.x, star.y, xRange, yRange, W, H);
-    const glow = 0.7 + 0.3 * Math.sin(state.time * 4 + star.x);
-    drawStar(ctx, sx, sy, 12, glow);
+    const [sx, sy] = m2c(star.x, star.y, xr, yr, W, H);
+    const glow = 0.8 + 0.2 * Math.sin(state.time * 3 + star.x);
+    drawStar5(ctx, sx, sy, 14, glow);
   }
 
   // Particles
   for (const p of state.particles) {
     const alpha = p.life / p.maxLife;
-    const [px, py] = mathToCanvas(p.x, p.y, xRange, yRange, W, H);
+    const [px, py] = m2c(p.x, p.y, xr, yr, W, H);
     ctx.fillStyle = `rgba(251, 191, 36, ${alpha})`;
     ctx.beginPath();
-    ctx.arc(px, py, 2 * alpha, 0, Math.PI * 2);
+    ctx.arc(px, py, 3 * alpha, 0, Math.PI * 2);
     ctx.fill();
   }
 
   // Marble
   if (state.marblePos) {
-    const [mx, my] = mathToCanvas(state.marblePos.x, state.marblePos.y, xRange, yRange, W, H);
-    ctx.shadowColor = 'rgba(56, 189, 248, 0.8)';
-    ctx.shadowBlur = 20;
+    const [mx, my] = m2c(state.marblePos.x, state.marblePos.y, xr, yr, W, H);
+    ctx.save();
+    ctx.shadowColor = 'rgba(124, 58, 237, 0.6)';
+    ctx.shadowBlur = 12;
     const grad = ctx.createRadialGradient(mx - 2, my - 2, 1, mx, my, 10);
-    grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
-    grad.addColorStop(0.4, 'rgba(56, 189, 248, 0.9)');
-    grad.addColorStop(1, 'rgba(30, 64, 175, 0.6)');
+    grad.addColorStop(0, '#e9d5ff');
+    grad.addColorStop(0.5, '#8b5cf6');
+    grad.addColorStop(1, '#4c1d95');
     ctx.fillStyle = grad;
     ctx.beginPath();
     ctx.arc(mx, my, 10, 0, Math.PI * 2);
     ctx.fill();
-    ctx.shadowBlur = 0;
+    ctx.restore();
   }
 
-  // Gravity arrow
-  drawGravityArrow(ctx, state.gravity, W, H, state.time);
+  // Gravity arrow (top-right)
+  if (state.gravity !== 'down') {
+    drawGravityIndicator(ctx, state.gravity, W, state.time);
+  }
 }
 
-function drawStar(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, glow: number) {
+function drawStar5(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, glow: number) {
   ctx.save();
-  ctx.shadowColor = 'rgba(251, 191, 36, 0.8)';
-  ctx.shadowBlur = 15 * glow;
-  ctx.fillStyle = `rgba(251, 191, 36, ${glow})`;
+  ctx.shadowColor = 'rgba(251, 191, 36, 0.6)';
+  ctx.shadowBlur = 10 * glow;
+  ctx.fillStyle = '#fbbf24';
+  ctx.strokeStyle = '#d97706';
+  ctx.lineWidth = 1.5;
   ctx.beginPath();
   for (let i = 0; i < 5; i++) {
-    const angle = (i * 4 * Math.PI) / 5 - Math.PI / 2;
-    const r = i === 0 ? size : size;
-    const method = i === 0 ? 'moveTo' : 'lineTo';
-    const outerAngle = ((i * 2) * Math.PI) / 5 - Math.PI / 2;
-    const innerAngle = ((i * 2 + 1) * Math.PI) / 5 - Math.PI / 2;
-    if (i === 0) ctx.moveTo(x + size * Math.cos(outerAngle), y + size * Math.sin(outerAngle));
-    else ctx.lineTo(x + size * Math.cos(outerAngle), y + size * Math.sin(outerAngle));
-    ctx.lineTo(x + size * 0.4 * Math.cos(innerAngle), y + size * 0.4 * Math.sin(innerAngle));
+    const outerA = (i * 2 * Math.PI) / 5 - Math.PI / 2;
+    const innerA = ((i * 2 + 1) * Math.PI) / 5 - Math.PI / 2;
+    if (i === 0) ctx.moveTo(x + size * Math.cos(outerA), y + size * Math.sin(outerA));
+    else ctx.lineTo(x + size * Math.cos(outerA), y + size * Math.sin(outerA));
+    ctx.lineTo(x + size * 0.4 * Math.cos(innerA), y + size * 0.4 * Math.sin(innerA));
   }
   ctx.closePath();
   ctx.fill();
+  ctx.stroke();
   ctx.restore();
 }
 
-function drawGravityArrow(ctx: CanvasRenderingContext2D, dir: GravityDirection, W: number, H: number, time: number) {
-  const x = W - 40;
-  const y = 40;
-  const pulse = 0.6 + 0.4 * Math.sin(time * 3);
+function drawGravityIndicator(ctx: CanvasRenderingContext2D, dir: GravityDirection, W: number, time: number) {
+  const x = W - 50;
+  const y = 30;
+  const pulse = 0.6 + 0.4 * Math.sin(time * 2.5);
 
   ctx.save();
   ctx.globalAlpha = pulse;
-  ctx.fillStyle = dir === 'zero' ? 'rgba(168, 85, 247, 0.8)' : 'rgba(56, 189, 248, 0.8)';
-  ctx.font = 'bold 24px sans-serif';
-  
+
   const arrows: Record<GravityDirection, string> = {
     down: '↓', up: '↑', left: '←', right: '→', zero: '○'
   };
-  ctx.fillText(arrows[dir], x - 8, y + 8);
-  
-  ctx.font = '10px JetBrains Mono, monospace';
-  ctx.fillStyle = 'rgba(148, 163, 184, 0.7)';
-  ctx.fillText(dir === 'zero' ? 'ZERO-G' : `G: ${dir.toUpperCase()}`, x - 20, y + 28);
+
+  ctx.fillStyle = dir === 'zero' ? '#9333ea' : '#2563eb';
+  ctx.font = 'bold 22px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(arrows[dir], x, y + 7);
+
+  ctx.font = '9px Inter, sans-serif';
+  ctx.fillStyle = '#6b7280';
+  ctx.fillText(dir === 'zero' ? 'ZERO-G' : `G: ${dir.toUpperCase()}`, x, y + 22);
   ctx.restore();
+}
+
+function getGridStep(range: number): number {
+  if (range <= 8) return 1;
+  if (range <= 16) return 2;
+  if (range <= 40) return 4;
+  return 8;
 }

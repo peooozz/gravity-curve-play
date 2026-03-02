@@ -1,9 +1,9 @@
 import { useRef, useEffect, useCallback } from 'react';
-import { render } from './renderer';
-import { Star, GravityDirection, GravityWell, Particle } from './types';
+import { renderGraph } from './renderer';
+import { Star, GravityDirection, GravityWell, Particle, ParsedFn } from './types';
 
-interface GameCanvasProps {
-  fn: ((x: number) => number) | null;
+interface Props {
+  curves: ParsedFn[];
   stars: Star[];
   gravity: GravityDirection;
   gravityWells: GravityWell[];
@@ -12,30 +12,15 @@ interface GameCanvasProps {
   particles: Particle[];
   xRange: [number, number];
   yRange: [number, number];
-  animating: boolean;
 }
 
 export default function GameCanvas({
-  fn, stars, gravity, gravityWells, marblePos, trail, particles,
-  xRange, yRange, animating
-}: GameCanvasProps) {
+  curves, stars, gravity, gravityWells, marblePos, trail, particles,
+  xRange, yRange,
+}: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const starFieldRef = useRef<{ x: number; y: number; brightness: number }[]>([]);
   const timeRef = useRef(0);
-  const rafRef = useRef<number>(0);
-
-  useEffect(() => {
-    // Generate star field once
-    const field = [];
-    for (let i = 0; i < 150; i++) {
-      field.push({
-        x: Math.random() * 700,
-        y: Math.random() * 500,
-        brightness: Math.random(),
-      });
-    }
-    starFieldRef.current = field;
-  }, []);
+  const rafRef = useRef(0);
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -45,17 +30,16 @@ export default function GameCanvas({
 
     timeRef.current += 0.016;
 
-    render(ctx, {
-      canvasWidth: 700,
-      canvasHeight: 500,
+    renderGraph(ctx, {
+      width: canvas.width,
+      height: canvas.height,
       xRange, yRange,
-      fn, marblePos, trail, stars, gravity, gravityWells, particles,
-      starField: starFieldRef.current,
+      curves, marblePos, trail, stars, gravity, gravityWells, particles,
       time: timeRef.current,
     });
 
     rafRef.current = requestAnimationFrame(draw);
-  }, [fn, stars, gravity, gravityWells, marblePos, trail, particles, xRange, yRange]);
+  }, [curves, stars, gravity, gravityWells, marblePos, trail, particles, xRange, yRange]);
 
   useEffect(() => {
     rafRef.current = requestAnimationFrame(draw);
@@ -65,9 +49,10 @@ export default function GameCanvas({
   return (
     <canvas
       ref={canvasRef}
-      width={700}
-      height={500}
-      className="rounded-lg border border-border glow-cyan"
+      width={800}
+      height={560}
+      className="rounded-r-lg border-l border-border bg-background"
+      style={{ width: '100%', height: '100%' }}
     />
   );
 }

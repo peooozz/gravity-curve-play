@@ -1,5 +1,3 @@
-export type GravityDirection = 'down' | 'up' | 'left' | 'right' | 'zero';
-
 export interface Star {
   x: number;
   y: number;
@@ -10,20 +8,30 @@ export interface GravityWell {
   x: number;
   y: number;
   radius: number;
-  strength: number; // positive = attract, negative = repel
+  strength: number;
+}
+
+export type GravityDirection = 'down' | 'up' | 'left' | 'right' | 'zero';
+
+export interface EquationRow {
+  id: string;
+  text: string;
+  isInstruction: boolean;
+  locked: boolean;
 }
 
 export interface Level {
   id: number;
   name: string;
-  description: string;
+  instructions: string;
+  equations: EquationRow[];
   stars: Star[];
   gravity: GravityDirection;
   gravityWells: GravityWell[];
   canFlipGravity: boolean;
-  defaultEquation: string;
   xRange: [number, number];
   yRange: [number, number];
+  marbleStart: { x: number; y: number } | null;
 }
 
 export interface Particle {
@@ -35,4 +43,8 @@ export interface Particle {
   maxLife: number;
 }
 
-export type EquationType = 'linear' | 'quadratic' | 'sinusoidal' | 'unknown';
+export interface ParsedFn {
+  fn: (x: number) => number;
+  condition?: (x: number) => boolean;
+  color: string;
+}
