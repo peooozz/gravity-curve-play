@@ -1,0 +1,113 @@
+import { EquationRow } from './types';
+import { Plus, X, Undo2, Redo2 } from 'lucide-react';
+
+interface Props {
+  equations: EquationRow[];
+  instructions: string;
+  onEquationChange: (id: string, text: string) => void;
+  onAddRow: () => void;
+  onRemoveRow: (id: string) => void;
+  validMap: Record<string, boolean>;
+}
+
+const CURVE_COLORS = [
+  '#2563eb', '#dc2626', '#16a34a', '#9333ea', '#ea580c', '#0891b2', '#be185d', '#854d0e',
+];
+
+export default function EquationPanel({
+  equations, instructions, onEquationChange, onAddRow, onRemoveRow, validMap,
+}: Props) {
+  return (
+    <div className="w-[380px] flex flex-col border-r border-border bg-background h-full">
+      {/* Toolbar */}
+      <div className="flex items-center gap-1 px-3 py-2 border-b border-border">
+        <button
+          onClick={onAddRow}
+          className="p-1.5 rounded hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
+          title="Add equation"
+        >
+          <Plus size={18} />
+        </button>
+        <button className="p-1.5 rounded hover:bg-secondary transition-colors text-muted-foreground" title="Undo">
+          <Undo2 size={18} />
+        </button>
+        <button className="p-1.5 rounded hover:bg-secondary transition-colors text-muted-foreground" title="Redo">
+          <Redo2 size={18} />
+        </button>
+      </div>
+
+      {/* Instruction row */}
+      <div className="px-4 py-3 border-b border-border bg-secondary/50">
+        <div className="flex items-start gap-2">
+          <span className="text-xs text-muted-foreground mt-0.5 select-none font-mono">💬</span>
+          <p className="text-sm text-foreground leading-relaxed">{instructions}</p>
+        </div>
+      </div>
+
+      {/* Equation rows */}
+      <div className="flex-1 overflow-y-auto">
+        {equations.map((eq, idx) => {
+          const isValid = eq.text.trim() === '' || validMap[eq.id] !== false;
+          const color = CURVE_COLORS[idx % CURVE_COLORS.length];
+
+          return (
+            <div
+              key={eq.id}
+              className="group flex items-center border-b border-border hover:bg-secondary/30 transition-colors"
+            >
+              {/* Row number with color indicator */}
+              <div className="w-10 flex-shrink-0 flex items-center justify-center py-3">
+                <div
+                  className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold"
+                  style={{
+                    backgroundColor: eq.text.trim() ? color : 'transparent',
+                    color: eq.text.trim() ? 'white' : '#9ca3af',
+                    border: eq.text.trim() ? 'none' : '1.5px solid #d1d5db',
+                  }}
+                >
+                  {idx + 1}
+                </div>
+              </div>
+
+              {/* Input */}
+              <div className="flex-1 py-2 pr-1">
+                <input
+                  type="text"
+                  value={eq.text}
+                  onChange={(e) => onEquationChange(eq.id, e.target.value)}
+                  placeholder={`y = ...`}
+                  className={`w-full px-2 py-1.5 text-sm font-mono bg-transparent outline-none placeholder:text-muted-foreground/40 ${
+                    !isValid ? 'text-destructive' : 'text-foreground'
+                  }`}
+                  disabled={eq.locked}
+                />
+                {!isValid && (
+                  <p className="text-[10px] text-destructive px-2 mt-0.5">Invalid equation format</p>
+                )}
+              </div>
+
+              {/* Remove button */}
+              {!eq.locked && equations.length > 1 && (
+                <button
+                  onClick={() => onRemoveRow(eq.id)}
+                  className="p-1 mr-2 rounded opacity-0 group-hover:opacity-100 hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Add row button at bottom */}
+      <button
+        onClick={onAddRow}
+        className="flex items-center gap-2 px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary/50 border-t border-border transition-colors"
+      >
+        <Plus size={14} />
+        Add equation
+      </button>
+    </div>
+  );
+}
