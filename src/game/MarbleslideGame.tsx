@@ -433,9 +433,12 @@ export default function MarbleslideGame() {
     <div className="flex flex-col h-screen bg-secondary/30">
       {/* Top bar */}
       <div className="flex items-center justify-between px-4 py-2 bg-background border-b border-border">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <span className="text-lg font-bold bg-gradient-to-r from-blue-500 via-violet-500 to-purple-500 bg-clip-text text-transparent tracking-tight select-none">
             Medhavatika Marbleslides
+          </span>
+          <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-secondary text-muted-foreground border border-border">
+            {currentLevel + 1} of {levels.length}
           </span>
         </div>
 
@@ -453,24 +456,20 @@ export default function MarbleslideGame() {
           </button>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => goToLevel(currentLevel - 1)}
-            disabled={currentLevel === 0}
-            className="p-1.5 rounded hover:bg-secondary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        {/* Level dropdown */}
+        <div className="relative">
+          <select
+            value={currentLevel}
+            onChange={e => goToLevel(Number(e.target.value))}
+            className="appearance-none pl-3 pr-8 py-1.5 rounded-lg text-sm font-semibold bg-secondary text-foreground border border-border hover:border-primary focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all duration-200 cursor-pointer"
           >
-            <ChevronLeft size={18} />
-          </button>
-          <span className="text-sm text-muted-foreground font-medium min-w-[60px] text-center">
-            {currentLevel + 1} of {levels.length}
-          </span>
-          <button
-            onClick={() => goToLevel(currentLevel + 1)}
-            disabled={currentLevel === levels.length - 1}
-            className="p-1.5 rounded hover:bg-secondary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-          >
-            <ChevronRight size={18} />
-          </button>
+            {levels.map((lvl, i) => (
+              <option key={lvl.id} value={i}>
+                Level {i + 1}: {lvl.name}
+              </option>
+            ))}
+          </select>
+          <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground">▾</span>
         </div>
       </div>
 
