@@ -19,6 +19,21 @@ export function nextColor(): string {
   return c;
 }
 
+function parseNum(str: string | undefined): number {
+  if (!str || str === '+' || str === '') return 1;
+  if (str === '-') return -1;
+  if (str.includes('/')) {
+    const parts = str.split('/');
+    if (parts.length === 2) {
+      return parseFloat(parts[0]) / parseFloat(parts[1]);
+    }
+  }
+  return parseFloat(str) || 0;
+}
+
+// Regex for a number that might be a fraction, e.g. -1/2 or .5
+const numStr = `([+-]?\\d*\\.?\\d*(?:\\/\\d+)?)`;
+
 export function parseEquation(input: string, color?: string): ParsedFn | null {
   let cleaned = input.replace(/\s+/g, '').toLowerCase();
   if (!cleaned || cleaned.length === 0) return null;
@@ -48,18 +63,18 @@ export function parseEquation(input: string, color?: string): ParsedFn | null {
 
   // Try sin: A*sin(Bx+C)+D
   {
-    const m = cleaned.match(/^([+-]?\d*\.?\d*)\*?sin\(([+-]?\d*\.?\d*)\*?x([+-]\d*\.?\d*)?\)([+-]\d*\.?\d*)?$/);
+    const m = cleaned.match(new RegExp(`^${numStr}\\*?sin\\(${numStr}\\*?x([+-]\\d*\\.?\\d*(?:\\/\\d+)?)?\\)([+-]\\d*\\.?\\d*(?:\\/\\d+)?)?$`));
     if (cleaned === 'sin(x)') return { fn: Math.sin, condition, color: c };
-    const simple = cleaned.match(/^sin\(x\)([+-]\d*\.?\d*)$/);
+    const simple = cleaned.match(new RegExp(`^sin\\(x\\)([+-]\\d*\\.?\\d*(?:\\/\\d+)?)?$`));
     if (simple) {
-      const d = parseFloat(simple[1]) || 0;
+      const d = parseNum(simple[1]);
       return { fn: (x) => Math.sin(x) + d, condition, color: c };
     }
     if (m) {
-      const A = m[1] === '' || m[1] === '+' ? 1 : m[1] === '-' ? -1 : parseFloat(m[1]);
-      const B = !m[2] || m[2] === '' ? 1 : parseFloat(m[2]);
-      const C = m[3] ? parseFloat(m[3]) : 0;
-      const D = m[4] ? parseFloat(m[4]) : 0;
+      const A = parseNum(m[1]);
+      const B = parseNum(m[2]);
+      const C = parseNum(m[3]);
+      const D = parseNum(m[4]);
       if ([A, B, C, D].some(isNaN)) return null;
       return { fn: (x) => A * Math.sin(B * x + C) + D, condition, color: c };
     }
@@ -67,13 +82,13 @@ export function parseEquation(input: string, color?: string): ParsedFn | null {
 
   // Try cos
   if (cleaned.includes('cos(')) {
-    const m = cleaned.match(/^([+-]?\d*\.?\d*)\*?cos\(([+-]?\d*\.?\d*)\*?x([+-]\d*\.?\d*)?\)([+-]\d*\.?\d*)?$/);
+    const m = cleaned.match(new RegExp(`^${numStr}\\*?cos\\(${numStr}\\*?x([+-]\\d*\\.?\\d*(?:\\/\\d+)?)?\\)([+-]\\d*\\.?\\d*(?:\\/\\d+)?)?$`));
     if (cleaned === 'cos(x)') return { fn: Math.cos, condition, color: c };
     if (m) {
-      const A = m[1] === '' || m[1] === '+' ? 1 : m[1] === '-' ? -1 : parseFloat(m[1]);
-      const B = !m[2] || m[2] === '' ? 1 : parseFloat(m[2]);
-      const C = m[3] ? parseFloat(m[3]) : 0;
-      const D = m[4] ? parseFloat(m[4]) : 0;
+      const A = parseNum(m[1]);
+      const B = parseNum(m[2]);
+      const C = parseNum(m[3]);
+      const D = parseNum(m[4]);
       if ([A, B, C, D].some(isNaN)) return null;
       return { fn: (x) => A * Math.cos(B * x + C) + D, condition, color: c };
     }
@@ -81,11 +96,11 @@ export function parseEquation(input: string, color?: string): ParsedFn | null {
 
   // Try vertex form: a(x-h)^2+k
   {
-    const m = cleaned.match(/^([+-]?\d*\.?\d*)\(x([+-]\d*\.?\d*)\)\^2([+-]\d*\.?\d*)?$/);
+    const m = cleaned.match(new RegExp(`^${numStr}\\*?\\(x([+-]\\d*\\.?\\d*(?:\\/\\d+)?)\\)\\^2([+-]\\d*\\.?\\d*(?:\\/\\d+)?)?$`));
     if (m) {
-      const a = m[1] === '' || m[1] === '+' ? 1 : m[1] === '-' ? -1 : parseFloat(m[1]);
-      const h = -(parseFloat(m[2]) || 0); // x+(-4) means h=4, so negate
-      const k = m[3] ? parseFloat(m[3]) : 0;
+      const a = m[1] === '' || m[1] === '+' ? 1 : m[1] === '-' ? -1 : parseNum(m[1]);
+      const h = -parseNum(m[2]);
+      const k = m[3] ? parseNum(m[3]) : 0;
       if (!isNaN(a) && !isNaN(h) && !isNaN(k)) {
         return { fn: (x) => a * (x - h) * (x - h) + k, condition, color: c };
       }
@@ -101,13 +116,12 @@ export function parseEquation(input: string, color?: string): ParsedFn | null {
       for (const term of terms) {
         if (term.includes('X')) {
           const coeff = term.replace('X', '').replace('*', '');
-          a = coeff === '' || coeff === '+' ? 1 : coeff === '-' ? -1 : parseFloat(coeff);
+          a = coeff === '' || coeff === '+' ? 1 : coeff === '-' ? -1 : parseNum(coeff);
         } else if (term.includes('x')) {
           const coeff = term.replace('x', '').replace('*', '');
-          b = coeff === '' || coeff === '+' ? 1 : coeff === '-' ? -1 : parseFloat(coeff);
+          b = coeff === '' || coeff === '+' ? 1 : coeff === '-' ? -1 : parseNum(coeff);
         } else {
-          const val = parseFloat(term);
-          if (!isNaN(val)) cv = val;
+          cv = parseNum(term);
         }
       }
       if (!isNaN(a)) {
@@ -116,14 +130,57 @@ export function parseEquation(input: string, color?: string): ParsedFn | null {
     }
   }
 
+  // Try exponential: a*b^x+c or b^x+c
+  {
+    // Case 1: a*b^x+c or a*(b)^x+c
+    const m1 = cleaned.match(new RegExp(`^${numStr}[\\*\\(]${numStr}\\)?\\^x([+-]\\d*\\.?\\d*(?:\\/\\d+)?)?$`));
+    if (m1) {
+      const a = parseNum(m1[1]);
+      const b = parseNum(m1[2]);
+      const k = m1[3] ? parseNum(m1[3]) : 0;
+      if (!isNaN(a) && !isNaN(b) && !isNaN(k)) {
+        return { fn: (x) => a * Math.pow(b, x) + k, condition, color: c };
+      }
+    }
+    // Case 2: b^x+c or (b)^x+c
+    const m2 = cleaned.match(new RegExp(`^\\(?${numStr}\\)?\\^x([+-]\\d*\\.?\\d*(?:\\/\\d+)?)?$`));
+    if (m2) {
+      const b = parseNum(m2[1]);
+      const k = m2[2] ? parseNum(m2[2]) : 0;
+      if (!isNaN(b) && !isNaN(k)) {
+        return { fn: (x) => Math.pow(b, x) + k, condition, color: c };
+      }
+    }
+  }
+
   // Try absolute value: a*|x-h|+k or |x|
   {
-    const m = cleaned.match(/^([+-]?\d*\.?\d*)\*?\|x([+-]\d*\.?\d*)?\|([+-]\d*\.?\d*)?$/);
+    const m = cleaned.match(new RegExp(`^${numStr}\\*?\\|x([+-]\\d*\\.?\\d*(?:\\/\\d+)?)?\\|([+-]\\d*\\.?\\d*(?:\\/\\d+)?)?$`));
     if (m) {
-      const a = m[1] === '' || m[1] === '+' ? 1 : m[1] === '-' ? -1 : parseFloat(m[1]);
-      const h = m[2] ? -(parseFloat(m[2]) || 0) : 0;
-      const k = m[3] ? parseFloat(m[3]) : 0;
+      const a = m[1] === '' || m[1] === '+' ? 1 : m[1] === '-' ? -1 : parseNum(m[1]);
+      const h = m[2] ? -parseNum(m[2]) : 0;
+      const k = m[3] ? parseNum(m[3]) : 0;
       if (!isNaN(a)) return { fn: (x) => a * Math.abs(x - h) + k, condition, color: c };
+    }
+  }
+
+  // Try rational function: a/(x-h)^2 + k
+  {
+    // Needs to match: -1/(x-4)^2+2
+    const m = cleaned.match(new RegExp(`^${numStr}\\/\\(x([+-]\\d*\\.?\\d*(?:\\/\\d+)?)\\)\\^2([+-]\\d*\\.?\\d*(?:\\/\\d+)?)?$`));
+    if (m) {
+      const a = m[1] === '' || m[1] === '+' ? 1 : m[1] === '-' ? -1 : parseNum(m[1]);
+      const h = -parseNum(m[2]);
+      const k = m[3] ? parseNum(m[3]) : 0;
+      if (!isNaN(a) && !isNaN(h) && !isNaN(k)) {
+        return {
+          fn: (x) => {
+            const denom = Math.pow(x - h, 2);
+            if (Math.abs(denom) < 0.0001) return a > 0 ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
+            return (a / denom) + k;
+          }, condition, color: c
+        };
+      }
     }
   }
 
@@ -136,15 +193,14 @@ export function parseEquation(input: string, color?: string): ParsedFn | null {
       if (term.includes('x')) {
         hasX = true;
         const coeff = term.replace('x', '').replace('*', '');
-        m = coeff === '' || coeff === '+' ? 1 : coeff === '-' ? -1 : parseFloat(coeff);
+        m = coeff === '' || coeff === '+' ? 1 : coeff === '-' ? -1 : parseNum(coeff);
       } else {
-        const val = parseFloat(term);
-        if (!isNaN(val)) b = val;
+        b = parseNum(term);
       }
     }
-    if (!hasX && !isNaN(parseFloat(cleaned))) {
-      const val = parseFloat(cleaned);
-      return { fn: () => val, condition, color: c };
+    if (!hasX) {
+      const val = parseNum(cleaned);
+      if (!isNaN(val)) return { fn: () => val, condition, color: c };
     }
     if (hasX && !isNaN(m)) {
       return { fn: (x) => m * x + b, condition, color: c };

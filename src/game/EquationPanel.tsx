@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { EquationRow } from './types';
 import { Plus, X, Undo2, Redo2 } from 'lucide-react';
 
@@ -8,6 +9,10 @@ interface Props {
   onAddRow: () => void;
   onRemoveRow: (id: string) => void;
   validMap: Record<string, boolean>;
+  answers?: string[];
+  activeInputId?: string | null;
+  onInputFocus?: (id: string) => void;
+  registerInputRef?: (id: string, el: HTMLInputElement | null) => void;
 }
 
 const CURVE_COLORS = [
@@ -15,8 +20,11 @@ const CURVE_COLORS = [
 ];
 
 export default function EquationPanel({
-  equations, instructions, onEquationChange, onAddRow, onRemoveRow, validMap,
+  equations, instructions, onEquationChange, onAddRow, onRemoveRow, validMap, answers,
+  activeInputId, onInputFocus, registerInputRef
 }: Props) {
+  const [showAnswers, setShowAnswers] = useState(false);
+
   return (
     <div className="w-[380px] flex flex-col border-r border-border bg-background h-full">
       {/* Toolbar */}
@@ -36,14 +44,6 @@ export default function EquationPanel({
         </button>
       </div>
 
-      {/* Instruction row */}
-      <div className="px-4 py-3 border-b border-border bg-secondary/50">
-        <div className="flex items-start gap-2">
-          <span className="text-xs text-muted-foreground mt-0.5 select-none font-mono">💬</span>
-          <p className="text-sm text-foreground leading-relaxed">{instructions}</p>
-        </div>
-      </div>
-
       {/* Equation rows */}
       <div className="flex-1 overflow-y-auto">
         {equations.map((eq, idx) => {
@@ -53,36 +53,48 @@ export default function EquationPanel({
           return (
             <div
               key={eq.id}
-              className="group flex items-center border-b border-border hover:bg-secondary/30 transition-colors"
+              className={`group flex items-center border-b border-border transition-colors ${activeInputId === eq.id ? 'bg-secondary/40' : 'hover:bg-secondary/30'}`}
             >
-              {/* Row number with color indicator */}
+              {/* Row number with color indicator or quote mark */}
               <div className="w-10 flex-shrink-0 flex items-center justify-center py-3">
-                <div
-                  className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold"
-                  style={{
-                    backgroundColor: eq.text.trim() ? color : 'transparent',
-                    color: eq.text.trim() ? 'white' : '#9ca3af',
-                    border: eq.text.trim() ? 'none' : '1.5px solid #d1d5db',
-                  }}
-                >
-                  {idx + 1}
-                </div>
+                {eq.isInstruction ? (
+                  <span className="text-2xl font-serif text-[#ccc] leading-none mt-1 select-none">“</span>
+                ) : (
+                  <div
+                    className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold"
+                    style={{
+                      backgroundColor: eq.text.trim() ? color : 'transparent',
+                      color: eq.text.trim() ? 'white' : '#9ca3af',
+                      border: eq.text.trim() ? 'none' : '1.5px solid #d1d5db',
+                    }}
+                  >
+                    {idx + 1}
+                  </div>
+                )}
               </div>
 
-              {/* Input */}
-              <div className="flex-1 py-2 pr-1">
-                <input
-                  type="text"
-                  value={eq.text}
-                  onChange={(e) => onEquationChange(eq.id, e.target.value)}
-                  placeholder={`y = ...`}
-                  className={`w-full px-2 py-1.5 text-sm font-mono bg-transparent outline-none placeholder:text-muted-foreground/40 ${
-                    !isValid ? 'text-destructive' : 'text-foreground'
-                  }`}
-                  disabled={eq.locked}
-                />
-                {!isValid && (
-                  <p className="text-[10px] text-destructive px-2 mt-0.5">Invalid equation format</p>
+              {/* Content */}
+              <div className="flex-1 py-1.5 pr-1 flex items-center">
+                {eq.isInstruction ? (
+                  <div className="w-full px-2 py-1.5 text-[15px] font-medium text-[#444] font-sans">
+                    {eq.text}
+                  </div>
+                ) : (
+                  <div className="w-full relative">
+                    <input
+                      type="text"
+                      ref={(el) => registerInputRef?.(eq.id, el!)}
+                      onFocus={() => onInputFocus?.(eq.id)}
+                      value={eq.text}
+                      onChange={(e) => onEquationChange(eq.id, e.target.value)}
+                      placeholder=""
+                      className={`w-full px-2 py-1.5 text-lg font-serif italic bg-transparent outline-none ${!isValid ? 'text-destructive' : 'text-foreground'}`}
+                      disabled={eq.locked}
+                    />
+                    {!isValid && (
+                      <p className="text-[10px] text-destructive px-2 mt-0.5">Invalid equation</p>
+                    )}
+                  </div>
                 )}
               </div>
 
@@ -100,14 +112,39 @@ export default function EquationPanel({
         })}
       </div>
 
-      {/* Add row button at bottom */}
-      <button
-        onClick={onAddRow}
-        className="flex items-center gap-2 px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary/50 border-t border-border transition-colors"
-      >
-        <Plus size={14} />
-        Add equation
-      </button>
+      {/* Add row button and Answers at bottom */}
+      <div className="mt-auto border-t border-border bg-background flex flex-col">
+        <button
+          onClick={onAddRow}
+          className="flex items-center gap-2 px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors w-full border-b border-border"
+        >
+          <Plus size={14} />
+          Add equation
+        </button>
+
+        {answers && answers.length > 0 && (
+          <div className="flex flex-col">
+            <button
+              onClick={() => setShowAnswers(!showAnswers)}
+              className="px-4 py-2.5 text-sm font-medium text-left text-primary hover:bg-secondary/50 transition-colors flex justify-between items-center"
+            >
+              <span>{showAnswers ? "Hide Answers" : "Show Answers"}</span>
+            </button>
+            {showAnswers && (
+              <div className="px-4 pb-3 pt-1 bg-secondary/30">
+                <p className="text-xs text-muted-foreground mb-1.5 font-semibold">Solution Equations:</p>
+                <div className="space-y-1.5">
+                  {answers.map((ans, i) => (
+                    <div key={i} className="text-sm font-mono text-foreground p-1.5 bg-background border border-border rounded overflow-x-auto whitespace-nowrap">
+                      {ans}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

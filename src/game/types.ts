@@ -32,6 +32,8 @@ export interface Level {
   xRange: [number, number];
   yRange: [number, number];
   marbleStart: { x: number; y: number } | null;
+  answers?: string[];
+  isFreestyle?: boolean;
 }
 
 export interface Particle {
